@@ -1,0 +1,10 @@
+Revision history for Gtk2-Hexgrid
+
+0.01    December 7 2007
+       -First version, released on an unsuspecting world.
+
+0.02    December 11 2007
+       -default color, tile items (just text for now)
+
+0.03    December 11 2007
+       -background images, tile-relativeness

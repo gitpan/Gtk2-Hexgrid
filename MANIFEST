@@ -1,0 +1,15 @@
+Changes
+MANIFEST
+Makefile.PL
+README
+lib/Gtk2/Hexgrid.pm
+lib/Gtk2/Hexgrid/Item.pm
+lib/Gtk2/Hexgrid/Tile.pm
+t/00-load.t
+t/10-tiles.t
+t/11-coordinates.t
+t/pod-coverage.t
+t/pod.t
+example.pl
+A_w_keim.png
+META.yml                                 Module meta-data (added by MakeMaker)
