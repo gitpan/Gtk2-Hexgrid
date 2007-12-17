@@ -100,16 +100,21 @@ sub reset_hexgrid{
         }
     }
     if($showD){
-        my $T = $Hexgrid->get_tile(0,0);
-        $T = $T->sw unless $EFirst;
-        do{
-            $T->set_color(map{rand}(1..3))
-        } while ($T = $T->southeast);
+        my @tiles = $Hexgrid->nw_corner;
+        for my $T (@tiles){
+            do{
+                $T->set_color(map{rand}(1..3))
+            } while ($T = $T->southeast);
+        }
     }
     my $showPic = 1;
     if($showPic){
         my $T=$Hexgrid->get_tile(1,3);
         $T->set_background('A_w_keim.png') if $T;
+    }
+    if(1){ #testing stuff
+    #    my @tiles = $Hexgrid->se_corner;
+    #    $_->set_color(map{rand}(1..3)) for @tiles;
     }
     $Hexgrid->on_click(\&Hexgrid_click_cb);
     $hbox->pack_start($Hexgrid, 0, 0, 0);

@@ -8,3 +8,12 @@ Revision history for Gtk2-Hexgrid
 
 0.03    December 11 2007
        -background images, tile-relativeness
+
+0.04    December 15 2007
+       -more complete pod, more complete tests
+
+0.05    Decemer 17 2007
+       -fixed some pod
+       -functions to get particular groups of tiles
+         *corners of the hexgrid
+         *all tiles within some distance from a certain tile

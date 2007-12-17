@@ -1,6 +1,6 @@
 package Gtk2::Hexgrid;
 
-our $VERSION = '0.04';
+our $VERSION = '0.05';
 
 use warnings;
 use strict;
@@ -159,6 +159,29 @@ sub tiles_adjacent{
     return 0
 }
 
+#imagine 6 spokes extending outward at the corners, and looping back around
+#dealing with coordinates rather than tiles, as it could rin into undefined space and back
+sub get_tiles_in_range{
+    my ($self, $col, $row, $range) = @_;
+    my @corners = map{[$col, $row]} (0..5);
+    my @tiles_co = ([$col, $row]);
+    for my $ring (1..$range){
+        for my $dir(0..5){
+            my @corner = $self->next_col_row_by_direction(@{$corners[$dir]}[0,1], $dir);
+            $corners[$dir] = \@corner;
+            my @tmp = @{$corners[$dir]};
+            for (1..$ring){
+                @tmp = $self->next_col_row_by_direction(@tmp, $dir+2);
+                push @tiles_co, [@tmp];
+            }
+        }
+    }
+    my @tiles = grep {defined $_} map {$self->get_tile(@$_)} @tiles_co;
+    return @tiles;
+    #carp scalar @tiles_co;
+    #map {print join (',',@$_), "\n"} @tiles_co
+}
+
 sub get_tile_center{
     my ($self, $col, $row) = @_;
     croak 'usage: $hexgrid->get_tile_center($col,$row)' 
@@ -308,6 +331,52 @@ sub get_tile{
     return undef unless $self->tile_exists($col,$row);
     my $tile = $self->{tiles}->[$row][$col];
     return $tile;
+}
+
+#corners of the grid can be 1 or 2 tiles
+sub nw_corner{
+    my $self = shift;
+    return $self->get_tile(0,0) if $self->{evenFirst};
+    return ($self->get_tile(0,0), $self->get_tile(0,1));
+}
+sub ne_corner{
+    my $self = shift;
+    my @tiles = $self->get_tile($self->{w}-1,0);
+    unless($self->{evenLast}){
+        push @tiles, $self->get_tile ($self->{w}-$self->{evenFirst}, 1);
+    }
+    return @tiles;
+}
+sub sw_corner{
+    my $self = shift;
+    my @tiles = $self->get_tile (0, $self->{h}-1);
+    if ($self->{evenFirst} ^ ($self->{h}%2)){
+        push @tiles, $self->get_tile(0,$self->{h}-2)
+    }
+    return @tiles
+}
+
+#if this needs debugging, try looking at the coordinates on the example.
+sub se_corner{
+    my $self = shift;
+    my @tiles; # = $self->get_tile (0, $self->{h}-1);
+    #return undef;
+    if ($self->{evenLast}){
+        push @tiles, $self->get_tile ($self->{w}-1, $self->{h}-1);
+        unless ($self->{h}%2){
+            push @tiles, $self->get_tile ($self->{w}-1, $self->{h}-2);
+        }
+    }
+    else{ #odd last
+        if ($self->{h}%2){
+            push @tiles, $self->get_tile ($self->{w}-1, $self->{h}-1);
+            push @tiles, $self->get_tile ($self->{w}, $self->{h}-2);
+        }
+        else{
+            push @tiles, $self->get_tile ($self->{w}, $self->{h}-1);
+        }
+    }
+    return @tiles
 }
 
 sub tile_w{
@@ -622,6 +691,12 @@ Returns a tile object.
 
 Returns all tile objects of this hexgrid.
 
+=head2 get_tiles_in_range
+
+ $hexgrid->get_tiles_in_range($col, $row, $range);
+
+Returns all tiles within a particular distance of the specified coordinates.
+
 =head2 get_tile_from_XY, get_col_row_from_XY
 
  $hexgrid->get_col_row_from_XY($x, $y);
@@ -674,6 +749,22 @@ $tile->northeast is a simpler way to do this.
  $hexgrid->next_col_row_by_direction($col,$row, $direction);
 
 This function exists because next_tile_by_direction will return undef if the tile does not exist. There are no such limits to this one.
+
+=head2 Corners
+
+These will return the one or two tiles at a corner of the grid.
+
+=over
+
+=item ne_corner
+
+=item nw_corner
+
+=item se_corner
+
+=item sw_corner
+
+=back
 
 =head2 tile_w
 

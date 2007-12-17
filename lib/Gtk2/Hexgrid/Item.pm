@@ -25,6 +25,16 @@ sub new{
     return $self;
 }
 
+sub new_movable{
+    my ($class, $hexgrid, $itemName, $filename, $scale_to_tile) = @_;
+    my $imagename = $filename;
+    $imagename .= "~scaled" if $scale_to_tile;
+    $hexgrid->load_image ($imagename, $filename, $scale_to_tile);
+    my $self = new ($class, 'image', $imagename);
+    $self->{name} = $itemName;
+    return $self;
+}
+
 sub copy{
     my $self = shift;
     my %copy = %$self;
@@ -74,7 +84,7 @@ __END__
 
 =head1 NAME
 
-Gtk2::Hexgrid::Tile - a hexagonal tile from a Hexgrid
+Gtk2::Hexgrid::Item - a thing to be drawn over a tile
 
 =head1 SYNOPSIS
 
@@ -84,6 +94,10 @@ Gtk2::Hexgrid::Tile - a hexagonal tile from a Hexgrid
  my $item4 = new Gtk2::Hexgrid::Item("image", "imageName");
  $item4->set_priority(5);
  $item4->set_tile($tile);
+
+=head1 DESCRIPTION
+
+Use these if you want a background, some text, or some critters that aren't tied to a particular tile.
 
 =head1 METHODS
 
@@ -97,6 +111,12 @@ If "text", the text and font size are in the next fields.
 If 'image', the image name is in the next field.
 The image name is used as a key to the actual image.
 Images are loaded by Gtk2::Hexgrid::load_image.
+
+=head2 new_movable
+
+ my $item = new_movable Gtk2::Hexgrid::Item($hexgrid, $itemName, $filename, $scale_to_tile);
+
+This gives your item a name so that it can be found easily.
 
 =head2 copy
 
