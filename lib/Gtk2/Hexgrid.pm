@@ -1,6 +1,6 @@
 package Gtk2::Hexgrid;
 
-our $VERSION = '0.05';
+our $VERSION = '0.06';
 
 use warnings;
 use strict;
@@ -9,10 +9,7 @@ use Gtk2;
 use Cairo;
 use POSIX qw(ceil floor);
 use Gtk2::Hexgrid::Tile;
-#use Gtk2::Hexgrid::Item;
 use base 'Gtk2::EventBox';
-
-my %images = ();
 
 sub new{
     my $class = shift;
@@ -21,12 +18,13 @@ sub new{
     ($r,$g,$b) = (0,.4,0) unless defined($r) and defined($g) and defined($b);
     
     my $self= new Gtk2::EventBox->new;
+    $self->{images} = {}; #cache for sprites
     $self->{w} = $w;
     $self->{h} = $h;
     $self->{linesize} = $lineSize;
     $self->{border} = $border;
-    $self->{evenFirst} = $evenRowsFirst;
-    $self->{evenLast} = $evenRowsLast;
+    $self->{evenFirst} = $evenRowsFirst != 0; #these may need to be 1 or 0
+    $self->{evenLast} = $evenRowsLast != 0;
     $self->{gameBoard} = Gtk2::DrawingArea->new;
     my @dimensions = _calc_board_dimensions($w, $h, $lineSize, 
                         $border, $evenRowsFirst, $evenRowsLast);
@@ -61,6 +59,7 @@ sub get_cairo_context{
     return Gtk2::Gdk::Cairo::Context->create ($drawable);
 }
 
+#(in pixels)
 sub _calc_board_dimensions{
     my ($w,$h, $ls, $border, $evenFirst, $evenLast) = @_;
     my $pixelsW = $ls*3*($w-1) + $ls*2;
@@ -87,13 +86,13 @@ sub next_tile_by_direction{
         return $self->get_tile($col+1, $row+1) if $dir==1;
         return $self->get_tile($col, $row+1) if $dir==3;
         return $self->get_tile($col, $row-1) if $dir==4;
-        die "why did I die";
+        croak "why did I die";
     }
     return $self->get_tile($col, $row-1) if $dir==0;
     return $self->get_tile($col, $row+1) if $dir==1;
     return $self->get_tile($col-1, $row+1) if $dir==3;
     return $self->get_tile($col-1, $row-1) if $dir==4;
-    die "you've killed me!";
+    croak "you've killed me!";
 }
 
 sub next_col_row_by_direction{
@@ -160,26 +159,35 @@ sub tiles_adjacent{
 }
 
 #imagine 6 spokes extending outward at the corners, and looping back around
-#dealing with coordinates rather than tiles, as it could rin into undefined space and back
-sub get_tiles_in_range{
-    my ($self, $col, $row, $range) = @_;
+#dealing with coordinates rather than tiles, as it could run into undefined space and back
+sub get_ring{
+    my ($self, $col, $row, $radius) = @_;
+    return $self->get_tile($col, $row) if $radius==0;
     my @corners = map{[$col, $row]} (0..5);
-    my @tiles_co = ([$col, $row]);
-    for my $ring (1..$range){
-        for my $dir(0..5){
-            my @corner = $self->next_col_row_by_direction(@{$corners[$dir]}[0,1], $dir);
-            $corners[$dir] = \@corner;
-            my @tmp = @{$corners[$dir]};
-            for (1..$ring){
-                @tmp = $self->next_col_row_by_direction(@tmp, $dir+2);
-                push @tiles_co, [@tmp];
-            }
+    my @tiles_co;
+    #for my $ring (1..$radius){
+    for my $dir(0..5){
+        for (1..$radius){
+            my @co = $self->next_col_row_by_direction(@{$corners[$dir]}[0,1], $dir);
+            $corners[$dir] = \@co;
+        }
+        my @tmp = @{$corners[$dir]};
+        for (1..$radius){
+            @tmp = $self->next_col_row_by_direction(@tmp, $dir+2);
+            push @tiles_co, [@tmp];
         }
     }
     my @tiles = grep {defined $_} map {$self->get_tile(@$_)} @tiles_co;
+    #map {print STDERR join (',',@$_), "\n"} @tiles_co;
     return @tiles;
-    #carp scalar @tiles_co;
-    #map {print join (',',@$_), "\n"} @tiles_co
+}
+sub get_tiles_in_range{
+    my ($self, $col, $row, $range) = @_;
+    my @tiles;
+    for my $radius (0..$range){
+        push @tiles, $self->get_ring($col, $row, $radius);
+    }
+    return @tiles;
 }
 
 sub get_tile_center{
@@ -333,6 +341,14 @@ sub get_tile{
     return $tile;
 }
 
+#return the total number of tiles
+sub num_tiles{
+    my $self = shift;
+    return $self->{numTiles} if $self->{numTiles};
+    $self->{numTiles} = scalar $self->get_all_tiles;
+    return $self->{numTiles};
+}
+
 #corners of the grid can be 1 or 2 tiles
 sub nw_corner{
     my $self = shift;
@@ -355,7 +371,6 @@ sub sw_corner{
     }
     return @tiles
 }
-
 #if this needs debugging, try looking at the coordinates on the example.
 sub se_corner{
     my $self = shift;
@@ -390,7 +405,9 @@ sub load_image{
     my ($self, $imagename, $filename, $scale_to_tile) = @_;
     croak 'usage: $hexgrid->load_image($imagename, $filename, $scale_to_tile)' 
             unless (ref($self) && defined($imagename) && defined($filename));
-    return if $images{$imagename};
+    croak "file $filename not found" unless -e $filename;
+    
+    return if $self->{images}->{$imagename};
     my $surface = Cairo::ImageSurface->create_from_png ($filename);
     if($scale_to_tile){
         my $format = $surface->get_format;
@@ -405,20 +422,20 @@ sub load_image{
         $cr->paint;
         $surface = $scaledSurf;
     }
-    $images{$imagename} = $surface;
+    $self->{images}->{$imagename} = $surface;
 }
 
 sub get_image{
     my ($self, $name) = @_;
     croak 'usage: $hexgrid->get_image($imagename)' 
         unless (ref($self) && defined($name));
-    return $images{$name}
+    return $self->{images}->{$name}
 }
 
-sub _draw_item{
-    my ($self, $cr, $item) = @_;
-    my $type = $item->type;
-    my $tile = $item->tile;
+sub _draw_sprite{
+    my ($self, $cr, $sprite) = @_;
+    my $type = $sprite->type;
+    my $tile = $sprite->tile;
     my ($col, $row) = $tile->colrow;
     unless($self->tile_exists($col, $row)){
         carp "tile at $col $row doesn't exist" and return;
@@ -426,8 +443,8 @@ sub _draw_item{
     my ($x, $y) = $self->get_tile_center($col, $row);
    # warn $type;
     if($type eq 'text'){
-        my $text = $item->text;
-        my $fontSize = $item->size;
+        my $text = $sprite->text;
+        my $fontSize = $sprite->size;
         $cr->select_font_face ('sans', 'normal', 'normal');
         $cr->set_font_size ($fontSize);
         $cr->set_source_rgb (0, .0, .0);
@@ -439,7 +456,7 @@ sub _draw_item{
         $cr->show_text($text);
     }
     elsif($type eq 'image'){
-        my $imagename = $item->imageName;
+        my $imagename = $sprite->imageName;
         my $image = $self->get_image($imagename);
         $cr->set_source_rgb (.5,.5,.5);
         my $w = $image->get_width;
@@ -478,11 +495,11 @@ sub draw_tile{
     $cr->set_source_rgb($r, $g, $b);
     $cr->fill;
     
-    #draw items
+    #draw sprites
     $cr->append_path($path);
     $cr->clip;
-    my $items = $tile->items;
-    $self->_draw_item($cr, $_) for (@$items);
+    my $sprites = $tile->sprites;
+    $self->_draw_sprite($cr, $_) for (@$sprites);
     $cr->reset_clip;
     
     #stroke hex border
@@ -539,10 +556,6 @@ __END__
 =head1 NAME
 
 Gtk2::Hexgrid - a grid of hexagons
-
-=head1 VERSION
-
-Version 0.02
 
 =head1 SYNOPSIS
 
@@ -687,9 +700,20 @@ Callback function is called with tile coordinates and pixel coordinates.
 
 Returns a tile object.
 
+=head2 num_tiles
+
+Returns the number of tiles in this hexgrid.
+
 =head2 get_all_tiles
 
 Returns all tile objects of this hexgrid.
+
+=head2 get_ring
+
+ $hexgrid->get_tiles_in_range($col, $row, $radius);
+
+Returns all tiles that are exactly a particular distance
+from the specified coordinates.
 
 =head2 get_tiles_in_range
 
@@ -783,7 +807,7 @@ Lets you mess up this widget using cairo.
 I started this lib before I saw the hexmap library: L<http://hexmap.sourceforge.net>. 
 It supposedly has perl bindings.
 
-There are other implementations in wesnoth and freeciv.
+There are other implementations in wesnoth and freeciv. Services such as google codesearch will turn up a few more.
 
 =head1 AUTHOR
 

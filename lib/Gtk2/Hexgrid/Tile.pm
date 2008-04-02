@@ -1,12 +1,12 @@
 package Gtk2::Hexgrid::Tile;
 use warnings;
 use strict;
-use Gtk2::Hexgrid::Item;
+use Gtk2::Hexgrid::Sprite;
 
 # hexgrid->{tiles} # LoL of tiles
 # tiles will have their color and coordinates, and tiles will be accessible through \@tiles
-# tiles will have a list of Items, items will reference their tile
-# items will be accessable through \%items if they have a name(boat2,red1, etc)
+# tiles will have a list of sprites, sprites will reference their tile
+# sprites will be accessable through \%sprites if they have a name(boat2,red1, etc)
 
 sub new{
     my $class = shift;
@@ -18,7 +18,7 @@ sub new{
         r => $r,
         g => $g,
         b => $b,
-        items => []
+        sprites => []
     };
     
     bless $self, $class;
@@ -29,60 +29,60 @@ sub draw{
     $self->{hexgrid}->draw_tile_ref($self, @_)
 }
 
-sub has_item{
-    my ($self, $item) = @_;
-    my $items = $self->{items};
-    return scalar grep {$_ == $item} @{$self->{items}};
+sub has_sprite{
+    my ($self, $sprite) = @_;
+    my $sprites = $self->{sprites};
+    return scalar grep {$_ == $sprite} @{$self->{sprites}};
 }
 
-sub remove_item{
-    my ($self, $item) = @_;
-    my $numItems = scalar @{$self->{items}};
-    @{$self->{items}} = grep {$_ != $item} @{$self->{items}};
-    if($numItems == @{$self->{items}}) {#make sure that an item was actually removed
-        carp ("remove_item called with an item that was not attached to tile " . $self->col . ", " . $self->row);
+sub remove_sprite{
+    my ($self, $sprite) = @_;
+    my $numSprites = scalar @{$self->{sprites}};
+    @{$self->{sprites}} = grep {$_ != $sprite} @{$self->{sprites}};
+    if($numSprites == @{$self->{sprites}}) {#make sure that an sprite was actually removed
+        carp ("remove_sprite called with an sprite that was not attached to tile " . $self->col . ", " . $self->row);
         return;
     }
-    $item->_set_tile(undef);
+    $sprite->_set_tile(undef);
 }
 
-sub add_item{
-    my ($self, $item) = @_;
-    $item->_set_tile($self);
-    push @{$self->{items}}, $item;
-    #sort items into order of drawing
-    @{$self->{items}} = 
+sub add_sprite{
+    my ($self, $sprite) = @_;
+    $sprite->_set_tile($self);
+    push @{$self->{sprites}}, $sprite;
+    #sort sprites into order of drawing
+    @{$self->{sprites}} = 
         sort{$a->{priority} <=> $b->{priority}} 
-          @{$self->{items}};
+          @{$self->{sprites}};
 }
 
 sub destroy_text{
     my ($self) = shift;
-    @{$self->{items}} = grep {$_->type() ne "text"} @{$self->{items}};
+    @{$self->{sprites}} = grep {$_->type() ne "text"} @{$self->{sprites}};
 }
 sub destroy_background{
     my ($self) = shift;
-    @{$self->{items}} = grep {$_->priority() != -21.21} @{$self->{items}};    
+    @{$self->{sprites}} = grep {$_->priority() != -21.21} @{$self->{sprites}};    
 }
 
 sub set_text{
     my ($self, $text, $size) = @_;
 #    $self->destroy_text;
-    my $item = new Gtk2::Hexgrid::Item('text', $text, $size);
-    $item->set_priority(21.21);
-    $self->add_item($item);
-    return $item;
+    my $sprite = new Gtk2::Hexgrid::Sprite('text', $text, $size);
+    $sprite->set_priority(21.21);
+    $self->add_sprite($sprite);
+    return $sprite;
 }
 
 sub set_background{
     my ($self, $filename) = @_;
     my $imagename = $filename.'~scaled';
     $self->{hexgrid}->load_image ($imagename, $filename, 1);
-    my $item = new Gtk2::Hexgrid::Item ('image', $imagename);
-    $item->set_priority(-21.21);
+    my $sprite = new Gtk2::Hexgrid::Sprite ('image', $imagename);
+    $sprite->set_priority(-21.21);
     $self->destroy_background;
-    $self->add_item($item);
-    return $item;
+    $self->add_sprite($sprite);
+    return $sprite;
 }
 
 sub get_adjacent{
@@ -97,6 +97,12 @@ sub get_center{
 sub set_color{
     my ($self, $r, $g, $b) = @_;
     @{$self}{qw/r g b/} = ($r, $g, $b);
+}
+
+sub next_by_direction{
+    my $self= shift;
+    my $dir = shift;
+    $self->{hexgrid}->next_tile_by_direction($self->{col}, $self->{row}, $dir);
 }
 
 sub ne{ #northeast
@@ -142,14 +148,14 @@ sub colrow{
 sub rgb{
     @{shift()}{qw/r g b/}
 }
-sub items{
-    shift->{items}
+sub sprites{
+    shift->{sprites}
 }
 sub hexgrid{
     shift->{hexgrid}
 }
 sub background{
-    return shift->items->[0]->imageName;
+    return shift->sprites->[0]->imageName;
 }
 
 q ! positively!
@@ -202,7 +208,7 @@ $r, $g, $b are it's default color, and it may be changed later.
 
 =item background
 
-=item items
+=item sprites
 
 =back
 
@@ -251,6 +257,8 @@ These return the adjacent tile if it exists, else undef.
 
 =item nw
 
+=item next_by_direction
+
 =back
 
 =head2 set_background
@@ -280,37 +288,37 @@ Text is given a priority of 21.21. If you want to paint over it,
 give something a higher prioriry.
 Not redrawn automatically.
 
-=head2 add_item
+=head2 add_sprite
 
- $tile->add_item($item);
+ $tile->add_sprite($sprite);
 
-Attaches $item to $tile.
+Attaches $sprite to $tile.
 
-=head2 remove_item
+=head2 remove_sprite
 
- $tile->remove_item($item);
+ $tile->remove_sprite($sprite);
 
-Removes $item from $tile.
+Removes $sprite from $tile.
 
-=head2 has_item
+=head2 has_sprite
 
- $tile->remove_item($item);
+ $tile->has_sprite($sprite);
 
-Returns true if $item is attached to $tile, else false.
+Returns true if $sprite is attached to $tile, else false.
 
 =head2 destroy_background
 
  $tile->destroy_background;
 
-Removes background items from tile.  Actually, it believes that all
-items with a -21.21 priority are background items.
+Removes background sprites from tile.  Actually, it believes that all
+sprites with a -21.21 priority are background.
 
 =head2 destroy_text
 
  $tile->destroy_text;
 
-Removes all text items from tile.  Actually, it believes that all
-items with a 21.21 priority are text items.
+Removes all text sprites from tile.  Actually, it believes that all
+sprites with a 21.21 priority are text sprites.
 
 =head2 draw
 
